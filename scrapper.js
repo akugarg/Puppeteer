@@ -1,10 +1,14 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
-const C = require('./constants');
+const C = require('./login_details');
+const inp =require('./input');
 const USERNAME_SELECTOR = '#username';
 const PASSWORD_SELECTOR = '#password';
 const CTA_SELECTOR = '#app__container > main > div:nth-child(2) > form > div.login__form_action_container > button';
+const location='#ember165';
+
 (async () => {
+  
   const browser = await puppeteer.launch();
   const page = await browser.newPage();
   await page.goto('https://www.linkedin.com/login?fromSignIn=true&trk=guest_homepage-basic_nav-header-signin');
@@ -13,43 +17,71 @@ const CTA_SELECTOR = '#app__container > main > div:nth-child(2) > form > div.log
   await page.click(PASSWORD_SELECTOR);
   await page.keyboard.type(C.password);
   await page.click(CTA_SELECTOR);
+
   await page.waitForNavigation();
+
   await page.goto('https://www.linkedin.com/mynetwork/invite-connect/connections/');
-  await page.waitFor(4*1000);
-  await autoScroll(page);
-  //FETCHING NAMES AND URLS
+  
+  await page.evaluate(scrollToBottom);
+  await page.waitFor(3000);
+ 
 const text = await page.evaluate(() => Array.from(document.querySelectorAll('.mn-connection-card__name.t-16.t-black.t-bold'), element => element.textContent));
 const urls = await page.evaluate(() => Array.from(document.querySelectorAll('a.mn-connection-card__link.ember-view'), element => element.getAttribute('href')));
 
-//MERGING TWO ARRAYS
 var result =  urls.reduce(function(result, field, index) {
   result[text[index]] = field;
   return result;
 }, {})
 
-// console.log(result);
-// console.log(urls);
-await page.screenshot({path: 'linkedln.png'});
 
-fs.writeFile('./info.json', JSON.stringify(result), err => err ? console.log(err): null); //STORING DATA IN JSON FILE
-  await browser.close();
+fs.writeFile('./connections.json', JSON.stringify(result), err => err ? console.log(err): null);
+
+await page.goto('https://www.linkedin.com/search/results/people/?facetNetwork=%5B%22F%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH');
+await page.setViewport({
+  width: 1900,
+  height: 1080,
+});
+
+await page.click(location);
+await page.click('#ember169 > input[type=text]');
+await page.keyboard.type(inp.query);
+
+await page.waitForSelector('#triggered-expanded-ember168');
+await page.waitFor(3000);
+await page.click('#triggered-expanded-ember168');
+await page.waitFor(3000);
+// await page.screenshot({path: 'page1.png'});
+await page.click('#ember173');
+await page.waitFor(4000);
+
+// await page.screenshot({path: 'page2.png'});
+
+const n2 = await page.evaluate(() => Array.from(document.querySelectorAll('.name.actor-name'), element => element.textContent));
+await page.waitFor(3000);
+const ul = await page.evaluate(() => Array.from(document.querySelectorAll('a.search-result__result-link.ember-view'), element => element.getAttribute('href')));
+
+var result2 =  ul.reduce(function(result2, field, index) {
+  result2[n2[index]] = field;
+  return result2;
+}, {})
+await page.waitFor(3000);
+
+fs.writeFile('./connections_filter.json', JSON.stringify(result2), err => err ? console.log(err): null);
+
+await page.waitFor(3000);
+await browser.close();
 })();
 
-//FOR MAKING THE PAGE SCROLL TILL END
-async function autoScroll(page){
-  await page.evaluate(async () => {
-      await new Promise((resolve, reject) => {
-          var totalHeight = 0;
-          var distance = 100;
-          var timer = setInterval(() => {
-              var scrollHeight = document.body.scrollHeight;
-              window.scrollBy(0, distance);
-              totalHeight += distance;
-              if(totalHeight >= scrollHeight){
-                  clearInterval(timer);
-                  resolve();
-              }
-          }, 100);
-      });
+async function scrollToBottom() {
+  await new Promise(resolve => {
+    const distance = 80; // should be less than or equal to window.innerHeight
+    const delay = 100;
+    const timer = setInterval(() => {
+      document.scrollingElement.scrollBy(0, distance);
+      if (document.scrollingElement.scrollTop + window.innerHeight >= document.scrollingElement.scrollHeight) {
+        clearInterval(timer);
+        resolve();
+      }
+    }, delay);
   });
 }
